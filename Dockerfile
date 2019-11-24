@@ -6,34 +6,58 @@ RUN mkdir /build && apt-get update && \
 	xdot pkg-config python python3 libftdi-dev \
 	qt5-default python3-dev libboost-all-dev cmake
 
-FROM base as src
+RUN apt-get install -y libeigen3-dev
 
+
+FROM base as build-icestorm
 WORKDIR /build
-RUN git clone https://github.com/cliffordwolf/icestorm.git 
-RUN git clone https://github.com/YosysHQ/nextpnr.git 
-RUN git clone https://github.com/YosysHQ/arachne-pnr.git
-RUN git clone https://github.com/YosysHQ/yosys.git
-
-FROM src as build
-
+RUN git clone https://github.com/cliffordwolf/icestorm.git
 WORKDIR /build/icestorm
 RUN sed -i 's#/usr/local$#/opt/icestorm#' config.mk
 RUN make -j$(nproc)
 RUN make install
 
+FROM base as build-trellis
+WORKDIR /build
+RUN git clone --recursive https://github.com/SymbiFlow/prjtrellis
+WORKDIR /build/prjtrellis/libtrellis
+RUN cmake -DCMAKE_INSTALL_PREFIX=/opt/icestorm .
+RUN make -j$(nproc)
+RUN make install
+
+FROM base as build-nextpnr
+COPY --from=build-icestorm /opt/icestorm /opt/icestorm
+COPY --from=build-trellis /opt/icestorm /opt/icestorm
+WORKDIR /build
+RUN git clone https://github.com/YosysHQ/nextpnr.git
 WORKDIR /build/nextpnr
-RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DICEBOX_ROOT=/opt/icestorm/share/icebox .
+#RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DICEBOX_ROOT=/opt/icestorm/share/icebox .
+RUN cmake -DARCH=ecp5 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DTRELLIS_ROOT=/opt/icestorm/share/trellis -DICEBOX_ROOT=/opt/icestorm/share/icebox .
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /build/arachne-pnr
-RUN sed -i 's#/usr/local$#/opt/icestorm#' Makefile
-RUN make -j$(nproc)
-RUN make install
 
+
+#WORKDIR /build
+#RUN git clone https://github.com/YosysHQ/arachne-pnr.git
+#WORKDIR /build/arachne-pnr
+#RUN sed -i 's#/usr/local$#/opt/icestorm#' Makefile
+#RUN make -j$(nproc)
+#RUN make install
+
+FROM base as build-yosys
+WORKDIR /build
+RUN git clone https://github.com/YosysHQ/yosys.git
 WORKDIR /build/yosys
 RUN sed -i 's#/usr/local$#/opt/icestorm#' Makefile 
 RUN make -j$(nproc)
 RUN make install
 
-WORKDIR /build
+
+FROM base as stitch
+COPY --from=build-icestorm /opt/icestorm /opt/icestorm
+COPY --from=build-trellis /opt/icestorm /opt/icestorm
+COPY --from=build-nextpnr /opt/icestorm /opt/icestorm
+COPY --from=build-yosys /opt/icestorm /opt/icestorm
+WORKDIR /
+ENV PATH=/opt/icestorm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
