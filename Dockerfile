@@ -31,19 +31,25 @@ COPY --from=build-trellis /opt/icestorm /opt/icestorm
 WORKDIR /build
 RUN git clone https://github.com/YosysHQ/nextpnr.git
 WORKDIR /build/nextpnr
-#RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DICEBOX_ROOT=/opt/icestorm/share/icebox .
 RUN cmake -DARCH=ecp5 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DTRELLIS_ROOT=/opt/icestorm/share/trellis -DICEBOX_ROOT=/opt/icestorm/share/icebox .
 RUN make -j$(nproc)
 RUN make install
-
-
-
-#WORKDIR /build
-#RUN git clone https://github.com/YosysHQ/arachne-pnr.git
-#WORKDIR /build/arachne-pnr
-#RUN sed -i 's#/usr/local$#/opt/icestorm#' Makefile
+#WORKDIR /build/nextpnr/build-ice40
+#RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DICEBOX_ROOT=/opt/icestorm/share/icebox ..
 #RUN make -j$(nproc)
 #RUN make install
+
+
+
+FROM base as build-apnr
+COPY --from=build-icestorm /opt/icestorm /opt/icestorm
+WORKDIR /build
+RUN git clone https://github.com/YosysHQ/arachne-pnr.git
+WORKDIR /build/arachne-pnr
+RUN sed -i 's#/usr/local$#/opt/icestorm#' Makefile
+RUN make -j$(nproc)
+RUN make install
+
 
 FROM base as build-yosys
 WORKDIR /build
@@ -58,6 +64,7 @@ FROM base as stitch
 COPY --from=build-icestorm /opt/icestorm /opt/icestorm
 COPY --from=build-trellis /opt/icestorm /opt/icestorm
 COPY --from=build-nextpnr /opt/icestorm /opt/icestorm
+COPY --from=build-apnr /opt/icestorm /opt/icestorm
 COPY --from=build-yosys /opt/icestorm /opt/icestorm
 WORKDIR /
 ENV PATH=/opt/icestorm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
