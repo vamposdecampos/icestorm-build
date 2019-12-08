@@ -21,6 +21,7 @@ FROM base as build-trellis
 WORKDIR /build
 RUN git clone --recursive https://github.com/SymbiFlow/prjtrellis
 WORKDIR /build/prjtrellis/libtrellis
+RUN git checkout 3311e6d
 RUN cmake -DCMAKE_INSTALL_PREFIX=/opt/icestorm .
 RUN make -j$(nproc)
 RUN make install
@@ -30,6 +31,8 @@ COPY --from=build-icestorm /opt/icestorm /opt/icestorm
 COPY --from=build-trellis /opt/icestorm /opt/icestorm
 WORKDIR /build
 RUN git clone https://github.com/YosysHQ/nextpnr.git
+WORKDIR /build/nextpnr
+RUN git checkout 19cb4ca
 WORKDIR /build/nextpnr/build-ice40
 RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/opt/icestorm -DICEBOX_ROOT=/opt/icestorm/share/icebox ..
 RUN make -j$(nproc)
@@ -55,6 +58,7 @@ FROM base as build-yosys
 WORKDIR /build
 RUN git clone https://github.com/YosysHQ/yosys.git
 WORKDIR /build/yosys
+RUN git checkout 70d0f38
 RUN sed -i 's#/usr/local$#/opt/icestorm#' Makefile 
 RUN make -j$(nproc)
 RUN make install
